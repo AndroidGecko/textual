@@ -122,7 +122,7 @@ public struct StructuredText: View {
   /// would not trigger a re-render.
   public init(preparsed attributedString: AttributedString) {
     self.markup = ""
-    self.parser = AttributedStringMarkdownParser()
+    self.parser = AttributedStringMarkdownParser(baseURL: nil)
     self._attributedString = State(initialValue: attributedString)
   }
 
