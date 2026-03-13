@@ -21,7 +21,7 @@ public struct FileAttachmentLoader: SynchronousAttachmentLoader {
     text: String,
     environment: ColorEnvironmentValues
   ) async throws -> some Attachment {
-    guard let attachment = syncAttachment(for: url, text: text, environment: environment)
+    guard let attachment = loadImage(for: url, text: text)
     else { throw URLError(.cannotDecodeContentData) }
     return attachment
   }
@@ -31,6 +31,10 @@ public struct FileAttachmentLoader: SynchronousAttachmentLoader {
     text: String,
     environment: ColorEnvironmentValues
   ) -> (any Textual.Attachment)? {
+    loadImage(for: url, text: text)
+  }
+
+  private func loadImage(for url: URL, text: String) -> ImageAttachment? {
     let imageURL = URL(string: url.absoluteString, relativeTo: baseURL) ?? url
     guard imageURL.isFileURL,
           let data = try? Data(contentsOf: imageURL),
