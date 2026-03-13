@@ -115,6 +115,17 @@ public struct StructuredText: View {
     self.parser = parser
   }
 
+  /// Creates a structured-text view from a pre-parsed `AttributedString`.
+  ///
+  /// Use this initializer when the view will not receive SwiftUI lifecycle callbacks —
+  /// for example, inside `ImageRenderer` — where `@State` updates from `.onChange`
+  /// would not trigger a re-render.
+  public init(preparsed attributedString: AttributedString) {
+    self.markup = ""
+    self.parser = AttributedStringMarkdownParser()
+    self._attributedString = State(initialValue: attributedString)
+  }
+
   public var body: some View {
     WithAttachments(attributedString) {
       BlockContent(content: $0)
@@ -123,6 +134,7 @@ public struct StructuredText: View {
     }
     .coordinateSpace(.textContainer)
     .onChange(of: markup, initial: true) {
+      guard !markup.isEmpty else { return }
       markupDidChange(markup)
     }
     // Disable line limit to avoid per-fragment truncation
