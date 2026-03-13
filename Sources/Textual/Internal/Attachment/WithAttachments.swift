@@ -35,18 +35,17 @@ struct WithAttachments<Content: View>: View {
   }
 
   var body: some View {
-    let resolved = model.resolvedAttributedString
-      ?? model.resolveSynchronously(
-        attributedString,
-        imageAttachmentLoader: imageAttachmentLoader,
-        emojiAttachmentLoader: emojiAttachmentLoader,
-        environment: colorEnvironment
-      )
-      ?? attributedString
+    let syncResolved = Self.resolveSynchronously(
+      attributedString,
+      imageAttachmentLoader: imageAttachmentLoader,
+      emojiAttachmentLoader: emojiAttachmentLoader,
+      environment: colorEnvironment
+    )
+    let resolved = model.resolvedAttributedString ?? syncResolved ?? attributedString
 
     content(resolved)
       .task(id: attributedString) {
-        guard model.resolvedAttributedString == nil else { return }
+        guard syncResolved == nil, model.resolvedAttributedString == nil else { return }
         await model.resolveAttachments(
           in: attributedString,
           imageAttachmentLoader: imageAttachmentLoader,
@@ -55,54 +54,51 @@ struct WithAttachments<Content: View>: View {
         )
       }
   }
+
+  private static func resolveSynchronously(
+    _ attributedString: AttributedString,
+    imageAttachmentLoader: any AttachmentLoader,
+    emojiAttachmentLoader: any AttachmentLoader,
+    environment: ColorEnvironmentValues
+  ) -> AttributedString? {
+    guard attributedString.containsValues(for: [\.imageURL, \.textual.emojiURL]) else {
+      return nil
+    }
+
+    let syncImageLoader = imageAttachmentLoader as? any SynchronousAttachmentLoader
+    let syncEmojiLoader = emojiAttachmentLoader as? any SynchronousAttachmentLoader
+
+    guard syncImageLoader != nil || syncEmojiLoader != nil else { return nil }
+
+    var attachments: [(Range<AttributedString.Index>, AnyAttachment)] = []
+
+    for run in attributedString.runs {
+      if let imageURL = run.imageURL, let loader = syncImageLoader {
+        let text = String(attributedString[run.range].characters[...])
+        if let attachment = loader.syncAttachment(for: imageURL, text: text, environment: environment) {
+          attachments.append((run.range, AnyAttachment(attachment)))
+        }
+      } else if let emojiURL = run.textual.emojiURL, let loader = syncEmojiLoader {
+        let text = String(attributedString[run.range].characters[...])
+        if let attachment = loader.syncAttachment(for: emojiURL, text: text, environment: environment) {
+          attachments.append((run.range, AnyAttachment(attachment)))
+        }
+      }
+    }
+
+    guard !attachments.isEmpty else { return nil }
+
+    var resolved = attributedString
+    for (range, attachment) in attachments {
+      resolved[range].textual.attachment = attachment
+    }
+    return resolved
+  }
 }
 
 extension WithAttachments {
   @MainActor @Observable final class Model {
     var resolvedAttributedString: AttributedString?
-
-    // MARK: - Synchronous Resolution
-
-    func resolveSynchronously(
-      _ attributedString: AttributedString,
-      imageAttachmentLoader: any AttachmentLoader,
-      emojiAttachmentLoader: any AttachmentLoader,
-      environment: ColorEnvironmentValues
-    ) -> AttributedString? {
-      guard attributedString.containsValues(for: [\.imageURL, \.textual.emojiURL]) else {
-        return nil
-      }
-
-      let syncImageLoader = imageAttachmentLoader as? any SynchronousAttachmentLoader
-      let syncEmojiLoader = emojiAttachmentLoader as? any SynchronousAttachmentLoader
-
-      guard syncImageLoader != nil || syncEmojiLoader != nil else { return nil }
-
-      var attachments: [(Range<AttributedString.Index>, AnyAttachment)] = []
-
-      for run in attributedString.runs {
-        if let imageURL = run.imageURL, let loader = syncImageLoader {
-          let text = String(attributedString[run.range].characters[...])
-          if let attachment = loader.syncAttachment(for: imageURL, text: text, environment: environment) {
-            attachments.append((run.range, AnyAttachment(attachment)))
-          }
-        } else if let emojiURL = run.textual.emojiURL, let loader = syncEmojiLoader {
-          let text = String(attributedString[run.range].characters[...])
-          if let attachment = loader.syncAttachment(for: emojiURL, text: text, environment: environment) {
-            attachments.append((run.range, AnyAttachment(attachment)))
-          }
-        }
-      }
-
-      guard !attachments.isEmpty else { return nil }
-
-      var resolved = attributedString
-      for (range, attachment) in attachments {
-        resolved[range].textual.attachment = attachment
-      }
-      self.resolvedAttributedString = resolved
-      return resolved
-    }
 
     // MARK: - Async Resolution
 
