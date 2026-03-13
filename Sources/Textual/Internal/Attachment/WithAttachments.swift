@@ -8,9 +8,13 @@ import SwiftUI
 // - `run.imageURL` for images
 // - `run.textual.emojiURL` for custom emoji references emitted by pattern expansion
 //
-// This view asynchronously loads those URLs using the environment-provided attachment loaders and
-// writes the resolved attachments back into the attributed string as `Textual.Attachment`
-// attributes. The rest of the rendering pipeline treats attachment runs like any other span.
+// This view resolves those URLs using the environment-provided attachment loaders and writes the
+// resolved attachments back into the attributed string as `Textual.Attachment` attributes. The
+// rest of the rendering pipeline treats attachment runs like any other span.
+//
+// When a loader conforms to `SynchronousAttachmentLoader`, attachments are resolved immediately
+// on the first render pass. This is required for environments like widgets where `.task` may not
+// trigger a re-render. For async-only loaders, resolution happens via `.task` as before.
 
 struct WithAttachments<Content: View>: View {
   @Environment(\.imageAttachmentLoader) private var imageAttachmentLoader
@@ -31,8 +35,18 @@ struct WithAttachments<Content: View>: View {
   }
 
   var body: some View {
-    content(model.resolvedAttributedString ?? attributedString)
+    let resolved = model.resolvedAttributedString
+      ?? model.resolveSynchronously(
+        attributedString,
+        imageAttachmentLoader: imageAttachmentLoader,
+        emojiAttachmentLoader: emojiAttachmentLoader,
+        environment: colorEnvironment
+      )
+      ?? attributedString
+
+    content(resolved)
       .task(id: attributedString) {
+        guard model.resolvedAttributedString == nil else { return }
         await model.resolveAttachments(
           in: attributedString,
           imageAttachmentLoader: imageAttachmentLoader,
@@ -46,6 +60,51 @@ struct WithAttachments<Content: View>: View {
 extension WithAttachments {
   @MainActor @Observable final class Model {
     var resolvedAttributedString: AttributedString?
+
+    // MARK: - Synchronous Resolution
+
+    func resolveSynchronously(
+      _ attributedString: AttributedString,
+      imageAttachmentLoader: any AttachmentLoader,
+      emojiAttachmentLoader: any AttachmentLoader,
+      environment: ColorEnvironmentValues
+    ) -> AttributedString? {
+      guard attributedString.containsValues(for: [\.imageURL, \.textual.emojiURL]) else {
+        return nil
+      }
+
+      let syncImageLoader = imageAttachmentLoader as? any SynchronousAttachmentLoader
+      let syncEmojiLoader = emojiAttachmentLoader as? any SynchronousAttachmentLoader
+
+      guard syncImageLoader != nil || syncEmojiLoader != nil else { return nil }
+
+      var attachments: [(Range<AttributedString.Index>, AnyAttachment)] = []
+
+      for run in attributedString.runs {
+        if let imageURL = run.imageURL, let loader = syncImageLoader {
+          let text = String(attributedString[run.range].characters[...])
+          if let attachment = loader.syncAttachment(for: imageURL, text: text, environment: environment) {
+            attachments.append((run.range, AnyAttachment(attachment)))
+          }
+        } else if let emojiURL = run.textual.emojiURL, let loader = syncEmojiLoader {
+          let text = String(attributedString[run.range].characters[...])
+          if let attachment = loader.syncAttachment(for: emojiURL, text: text, environment: environment) {
+            attachments.append((run.range, AnyAttachment(attachment)))
+          }
+        }
+      }
+
+      guard !attachments.isEmpty else { return nil }
+
+      var resolved = attributedString
+      for (range, attachment) in attachments {
+        resolved[range].textual.attachment = attachment
+      }
+      self.resolvedAttributedString = resolved
+      return resolved
+    }
+
+    // MARK: - Async Resolution
 
     func resolveAttachments(
       in attributedString: AttributedString,
