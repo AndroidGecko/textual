@@ -23,9 +23,16 @@ extension StructuredText {
     }
 
     private var label: some View {
-      WithInlineStyle(AttributedString(content)) {
-        TextFragment($0)
+      // Wide display equations don't wrap in swiftui-math and would clip off the
+      // right edge (worse at larger font sizes). Make them horizontally
+      // scrollable instead. `fixedSize(vertical:)` keeps the scroll view's height
+      // at the equation's height (a ScrollView would otherwise grow to fill).
+      ScrollView(.horizontal, showsIndicators: false) {
+        WithInlineStyle(AttributedString(content)) {
+          TextFragment($0)
+        }
       }
+      .fixedSize(horizontal: false, vertical: true)
     }
 
     private var indentationLevel: Int {
