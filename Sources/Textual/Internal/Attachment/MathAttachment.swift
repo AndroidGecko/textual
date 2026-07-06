@@ -37,7 +37,23 @@ struct MathAttachment: Attachment {
   }
 
   func sizeThatFits(_ proposal: ProposedViewSize, in environment: TextEnvironmentValues) -> CGSize {
-    typographicBounds(fitting: proposal, in: environment).size
+    // Always measure at natural size (`.unspecified` → maxWidth 0). swiftui-math's
+    // interatom line breaking is fragile: a sub-point shortfall below the natural
+    // width collapses a short inline expression like `\mathrm{CO}` onto multiple
+    // lines, and the leading glyph is then clipped by the single-line run. The
+    // shortfall comes from device-scale pixel snapping of the run bounds, which is
+    // why it reproduces on iPhone (@3x) but not iPad (@2x).
+    let natural = typographicBounds(fitting: .unspecified, in: environment).size
+
+    // Display equations don't wrap in this swiftui-math version, so a wide one would
+    // overflow and clip on a narrow screen. Shrink it to fit the available width
+    // instead — the overlay draws the (natural-size) view scaled into this rect.
+    if displayStyle == .block, let maxW = proposal.width, maxW.isFinite, maxW > 0,
+       natural.width > maxW {
+      let scale = maxW / natural.width
+      return CGSize(width: maxW, height: natural.height * scale)
+    }
+    return natural
   }
 
   private func typographicBounds(
@@ -72,6 +88,11 @@ private struct MathView: View {
       )
       .mathTypesettingStyle(.init(style))
       .mathRenderingMode(.monochrome)
+      // Render at natural (unbounded) width so swiftui-math never applies its
+      // fragile interatom line breaking, which drops glyphs from short inline
+      // expressions. The overlay scales this view into the run's bounds — for block
+      // math that's the shrunk-to-fit rect computed in `MathAttachment.sizeThatFits`.
+      .fixedSize(horizontal: true, vertical: false)
   }
 }
 
