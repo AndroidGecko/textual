@@ -28,6 +28,7 @@ import SwiftUI
 struct TextFragment<Content: AttributedStringProtocol>: View {
   @Environment(\.textEnvironment) private var textEnvironment
   @State private var textBuilder: TextBuilder?
+  @State private var containerWidth: CGFloat?
 
   private let content: Content
 
@@ -40,14 +41,35 @@ struct TextFragment<Content: AttributedStringProtocol>: View {
       .customAttribute(TextFragmentAttribute())
       .onGeometryChange(for: CGSize?.self, of: \.textContainerSize) { size in
         guard let size, let textBuilder else { return }
-        textBuilder.sizeChanged(size, environment: textEnvironment)
+        containerWidth = size.width
+        textBuilder.sizeChanged(size, environment: environment(width: size.width))
       }
       .onChange(of: content, initial: true) { _, newValue in
-        self.textBuilder = TextBuilder(newValue, environment: textEnvironment)
+        self.textBuilder = TextBuilder(newValue, environment: environment(width: containerWidth))
       }
       .modifier(TextSelectionBackground())
       .modifier(AttachmentOverlay(attachments: content.attachments()))
       .modifier(TextLinkInteraction())
+      // Publish the container width to attachment bodies so a promoted inline
+      // expression is *drawn* with the same wrapped layout the sizing pass
+      // reserved space for. This must sit AFTER `AttachmentOverlay`: that
+      // modifier builds the symbol views in its own body, so an `.environment`
+      // applied before it never reaches them — the symbols then render at
+      // natural width and `Canvas.draw(_:in:)` squashes them into the narrower
+      // rect instead of wrapping.
+      .environment(\.mathProperties, mathProperties(width: containerWidth))
+  }
+
+  private func mathProperties(width: CGFloat?) -> MathProperties {
+    var properties = textEnvironment.mathProperties
+    properties.containerWidth = width
+    return properties
+  }
+
+  private func environment(width: CGFloat?) -> TextEnvironmentValues {
+    var environment = textEnvironment
+    environment.mathProperties.containerWidth = width
+    return environment
   }
 
   private var text: Text {

@@ -24,6 +24,16 @@ public struct MathProperties: Sendable, Hashable {
   /// The alignment applied to block math paragraphs.
   public var textAlignment: TextAlignment
 
+  /// Width of the enclosing text container, when known.
+  ///
+  /// Set by `TextFragment` once container geometry is observed. Inline math never
+  /// line-breaks (swiftui-math only breaks `.display`), so an expression wider than
+  /// its container is otherwise clipped with no way to read the rest. Both the
+  /// sizing pass and the drawn symbol read this so they reach the *same*
+  /// promote-to-display decision — if they disagreed, the overlay would draw
+  /// natural-width math into a wrapped-size rect.
+  var containerWidth: CGFloat?
+
   public init(
     fontName: FontName = .latinModern,
     fontScale: CGFloat = 1.2,
