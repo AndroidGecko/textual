@@ -129,42 +129,14 @@
     }
 
     override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-      if activeTapCount > 1 {
-        logger.debug("denying \(type(of: gestureRecognizer)) on tap #\(self.activeTapCount)")
-        return false
-      }
-      if let tap = gestureRecognizer as? UITapGestureRecognizer,
-        tap.numberOfTapsRequired > 1
-      {
+      // Scoped to OUR recognizers: as the hit-test view we are also asked
+      // about ancestors' recognizers here, and the whole point is to let an
+      // ancestor's double-tap (the host's zoom) win the second tap.
+      if gestureRecognizer.view === self, activeTapCount > 1 {
         return false
       }
       return super.gestureRecognizerShouldBegin(gestureRecognizer)
     }
-
-    #if DEBUG
-      // One-shot map of where the interaction actually hangs its recognizers
-      // — they are not all on this view, and the classes are private.
-      override func didMoveToWindow() {
-        super.didMoveToWindow()
-        guard window != nil else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
-          guard let self else { return }
-          self.dumpRecognizers(of: self, depth: 0)
-        }
-      }
-
-      private func dumpRecognizers(of view: UIView, depth: Int) {
-        for recognizer in view.gestureRecognizers ?? [] {
-          let taps = (recognizer as? UITapGestureRecognizer)?.numberOfTapsRequired ?? -1
-          print(
-            "TXDBG d\(depth) \(type(of: view)) ← \(type(of: recognizer)) taps=\(taps) enabled=\(recognizer.isEnabled)"
-          )
-        }
-        for subview in view.subviews {
-          dumpRecognizers(of: subview, depth: depth + 1)
-        }
-      }
-    #endif
 
     @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
       let location = gesture.location(in: self)
