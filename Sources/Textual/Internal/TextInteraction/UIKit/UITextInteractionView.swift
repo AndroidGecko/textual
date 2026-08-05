@@ -17,6 +17,20 @@
       true
     }
 
+    // Standard iOS behavior: losing first-responder status ends the
+    // selection. Without this, a host app has no way to dismiss the
+    // grabbers from outside — the overlay only covers the text block, so
+    // taps elsewhere never reach its recognizers. Setting the range fires
+    // the model's will/did-change callbacks, which tears down the system
+    // selection UI and Textual's own highlight.
+    override func resignFirstResponder() -> Bool {
+      let resigned = super.resignFirstResponder()
+      if resigned {
+        model.selectedRange = nil
+      }
+      return resigned
+    }
+
     var model: TextSelectionModel
     var exclusionRects: [CGRect]
     var openURL: OpenURLAction
