@@ -114,10 +114,25 @@
     // Multi-tap shortcuts (double-tap word-select, triple-tap paragraph) are
     // given up so a host container's double-tap gesture — NeuraCache zooms
     // its card surface — still fires over text. Long-press selection and
-    // grabber dragging are separate recognizers and stay fully functional.
-    // Denied here at recognition time rather than via `isEnabled` because
-    // `UITextInteraction` re-manages its recognizers' enabled state itself.
+    // grabber dragging begin on a first tap and stay fully functional.
+    //
+    // The deny is keyed on the TOUCH's tap count, not the recognizer's
+    // class: the system interaction's word-select is not a plain
+    // `UITapGestureRecognizer` with `numberOfTapsRequired == 2` (verified on
+    // iOS 26), and `UITextInteraction` re-manages its recognizers' enabled
+    // state itself, so recognition-time denial is the only stable hook.
+    private var activeTapCount = 1
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+      activeTapCount = touches.map(\.tapCount).max() ?? 1
+      super.touchesBegan(touches, with: event)
+    }
+
     override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+      if activeTapCount > 1 {
+        logger.debug("denying \(type(of: gestureRecognizer)) on tap #\(self.activeTapCount)")
+        return false
+      }
       if let tap = gestureRecognizer as? UITapGestureRecognizer,
         tap.numberOfTapsRequired > 1
       {
@@ -125,6 +140,31 @@
       }
       return super.gestureRecognizerShouldBegin(gestureRecognizer)
     }
+
+    #if DEBUG
+      // One-shot map of where the interaction actually hangs its recognizers
+      // — they are not all on this view, and the classes are private.
+      override func didMoveToWindow() {
+        super.didMoveToWindow()
+        guard window != nil else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+          guard let self else { return }
+          self.dumpRecognizers(of: self, depth: 0)
+        }
+      }
+
+      private func dumpRecognizers(of view: UIView, depth: Int) {
+        for recognizer in view.gestureRecognizers ?? [] {
+          let taps = (recognizer as? UITapGestureRecognizer)?.numberOfTapsRequired ?? -1
+          print(
+            "TXDBG d\(depth) \(type(of: view)) ← \(type(of: recognizer)) taps=\(taps) enabled=\(recognizer.isEnabled)"
+          )
+        }
+        for subview in view.subviews {
+          dumpRecognizers(of: subview, depth: depth + 1)
+        }
+      }
+    #endif
 
     @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
       let location = gesture.location(in: self)
