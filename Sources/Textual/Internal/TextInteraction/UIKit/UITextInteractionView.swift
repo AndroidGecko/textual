@@ -95,6 +95,10 @@
       }
 
       let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
+      // Let unrecognized taps keep flowing to ancestor views: `handleTap`
+      // only acts on links, and a cancelling recognizer would starve a host
+      // container's own tap gestures (e.g. double-tap-to-zoom) of touches.
+      tapGesture.cancelsTouchesInView = false
       addGestureRecognizer(tapGesture)
 
       selectionInteraction.textInput = self
@@ -105,6 +109,21 @@
       }
 
       addInteraction(selectionInteraction)
+    }
+
+    // Multi-tap shortcuts (double-tap word-select, triple-tap paragraph) are
+    // given up so a host container's double-tap gesture — NeuraCache zooms
+    // its card surface — still fires over text. Long-press selection and
+    // grabber dragging are separate recognizers and stay fully functional.
+    // Denied here at recognition time rather than via `isEnabled` because
+    // `UITextInteraction` re-manages its recognizers' enabled state itself.
+    override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+      if let tap = gestureRecognizer as? UITapGestureRecognizer,
+        tap.numberOfTapsRequired > 1
+      {
+        return false
+      }
+      return super.gestureRecognizerShouldBegin(gestureRecognizer)
     }
 
     @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
