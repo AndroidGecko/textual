@@ -31,6 +31,17 @@
       return resigned
     }
 
+    /// Host apps post this to end any active selection — e.g. on a tap in
+    /// the surface AROUND the text. The responder route is not available to
+    /// them: SwiftUI's platform-view host (not this view) holds
+    /// first-responder status, so a nil-targeted resignFirstResponder never
+    /// reaches the view that owns the selection.
+    static let endSelectionNotification = Notification.Name("TextualEndTextSelection")
+
+    @objc private func handleEndSelectionNotification() {
+      model.selectedRange = nil
+    }
+
     var model: TextSelectionModel
     var exclusionRects: [CGRect]
     var openURL: OpenURLAction
@@ -56,6 +67,13 @@
       self.backgroundColor = .clear
 
       setUp()
+
+      NotificationCenter.default.addObserver(
+        self,
+        selector: #selector(handleEndSelectionNotification),
+        name: Self.endSelectionNotification,
+        object: nil
+      )
     }
 
     required init?(coder: NSCoder) {
