@@ -94,9 +94,10 @@ extension PatternTokenizer.Pattern {
   }
 
   static var highlight: Self {
-    // ==text== (the Obsidian/markdown-it convention). No-space adjacency on
-    // both edges keeps prose like `a == b` from matching.
-    .init(regex: /==(?!\s)((?:[^=\n]|=(?!=))+?)(?<!\s)==/, tokenType: .highlight)
+    // ==text== (the Obsidian/markdown-it convention). The non-space,
+    // non-= first char keeps prose like `a == b` and ===runs from matching.
+    // (No lookbehind — the iOS toolchain's Regex doesn't support it.)
+    .init(regex: /==([^=\s\n](?:[^=\n]|=(?!=))*?)==/, tokenType: .highlight)
   }
 }
 
