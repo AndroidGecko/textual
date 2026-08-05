@@ -114,7 +114,14 @@
           ]
         ]
       )
+
+      // Lets the host app confirm the copy (e.g. a toast) — the edit menu's
+      // action lands here, out of the host's sight.
+      NotificationCenter.default.post(name: Self.didCopyNotification, object: nil)
     }
+
+    /// Posted after the edit menu's Copy has written the pasteboard.
+    static let didCopyNotification = Notification.Name("TextualDidCopyText")
 
     private func setUp() {
       model.selectionWillChange = { [weak self] in
