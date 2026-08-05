@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 extension AttributedStringMarkdownParser {
   /// A syntax extension that replaces matched tokens after Markdown parsing.
@@ -34,6 +35,19 @@ extension AttributedStringMarkdownParser.SyntaxExtension {
         shortcode,
         attributes: attributes.emojiURL(emoji.url)
       )
+    }
+  }
+
+  /// Renders `==text==` (the Obsidian highlight convention) with a
+  /// background color, keeping the text and its other attributes intact.
+  public static func highlight(color: Color = .yellow.opacity(0.3)) -> Self {
+    .init(patterns: [.highlight]) { token, attributes in
+      guard let text = token.capturedContent else {
+        return nil
+      }
+      var highlighted = attributes
+      highlighted.backgroundColor = color
+      return AttributedString(text, attributes: highlighted)
     }
   }
 

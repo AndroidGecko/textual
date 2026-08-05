@@ -92,6 +92,12 @@ extension PatternTokenizer.Pattern {
   static var mathInline: Self {
     .init(regex: /\$(?!\$)((?:\\\$|[^$\n])+)\$/, tokenType: .mathInline)
   }
+
+  static var highlight: Self {
+    // ==text== (the Obsidian/markdown-it convention). No-space adjacency on
+    // both edges keeps prose like `a == b` from matching.
+    .init(regex: /==(?!\s)((?:[^=\n]|=(?!=))+?)(?<!\s)==/, tokenType: .highlight)
+  }
 }
 
 extension PatternTokenizer {
@@ -121,4 +127,5 @@ extension PatternTokenizer.TokenType {
   static let emoji: Self = "emoji"
   static let mathBlock: Self = "mathBlock"
   static let mathInline: Self = "mathInline"
+  static let highlight: Self = "highlight"
 }
