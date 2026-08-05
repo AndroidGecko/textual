@@ -111,32 +111,6 @@
       addInteraction(selectionInteraction)
     }
 
-    // Multi-tap shortcuts (double-tap word-select, triple-tap paragraph) are
-    // given up so a host container's double-tap gesture — NeuraCache zooms
-    // its card surface — still fires over text. Long-press selection and
-    // grabber dragging begin on a first tap and stay fully functional.
-    //
-    // The deny is keyed on the TOUCH's tap count, not the recognizer's
-    // class: the system interaction's word-select is not a plain
-    // `UITapGestureRecognizer` with `numberOfTapsRequired == 2` (verified on
-    // iOS 26), and `UITextInteraction` re-manages its recognizers' enabled
-    // state itself, so recognition-time denial is the only stable hook.
-    private var activeTapCount = 1
-
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-      activeTapCount = touches.map(\.tapCount).max() ?? 1
-      super.touchesBegan(touches, with: event)
-    }
-
-    override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-      // Scoped to OUR recognizers: as the hit-test view we are also asked
-      // about ancestors' recognizers here, and the whole point is to let an
-      // ancestor's double-tap (the host's zoom) win the second tap.
-      if gestureRecognizer.view === self, activeTapCount > 1 {
-        return false
-      }
-      return super.gestureRecognizerShouldBegin(gestureRecognizer)
-    }
 
     @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
       let location = gesture.location(in: self)
