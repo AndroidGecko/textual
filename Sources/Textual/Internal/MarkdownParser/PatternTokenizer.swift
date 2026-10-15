@@ -89,8 +89,23 @@ extension PatternTokenizer.Pattern {
     .init(regex: /(?s)\$\$(.+?)\$\$/, tokenType: .mathBlock)
   }
 
+  /// `\$`: a literal dollar sign that never opens math. Foundation's
+  /// Markdown parser turns `\$` into a plain `$`, so a host that wants the
+  /// escape must keep its backslash through that parser (write `\\\$`).
+  static var escapedDollar: Self {
+    .init(regex: /\\(\$)/, tokenType: .escapedDollar)
+  }
+
+  /// `$…$` on one line, by Pandoc's `tex_math_dollars` rule: the opening `$`
+  /// has a non-space right after it, and the closing `$` has a non-space
+  /// right before it and no digit right after it. So prices ("$5 and $10")
+  /// stay text. Inside, `\` escapes the next character, so `\$` never closes.
+  /// (No lookbehind — the iOS toolchain's Regex doesn't support it.)
   static var mathInline: Self {
-    .init(regex: /\$(?!\$)((?:\\\$|[^$\n])+)\$/, tokenType: .mathInline)
+    .init(
+      regex: /\$(?![\s$])((?:\\[^\n]|[^$\\\n])*?(?:\\[^\n]|[^$\\\s]))\$(?![0-9])/,
+      tokenType: .mathInline
+    )
   }
 
   static var highlight: Self {
@@ -128,5 +143,6 @@ extension PatternTokenizer.TokenType {
   static let emoji: Self = "emoji"
   static let mathBlock: Self = "mathBlock"
   static let mathInline: Self = "mathInline"
+  static let escapedDollar: Self = "escapedDollar"
   static let highlight: Self = "highlight"
 }

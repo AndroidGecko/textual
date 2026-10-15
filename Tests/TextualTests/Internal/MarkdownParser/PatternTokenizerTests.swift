@@ -159,6 +159,83 @@ struct PatternTokenizerTests {
     )
   }
 
+  @Test func pricesAreNotMath() throws {
+    // given
+    let tokenizer = PatternTokenizer(patterns: [.escapedDollar, .mathBlock, .mathInline])
+
+    // when
+    let prices = try tokenizer.tokenize("It costs $5 and $10.")
+    let thousands = try tokenizer.tokenize("$20,000 and $30,000")
+
+    // then
+    #expect(prices == [.init(type: .text, content: "It costs $5 and $10.")])
+    #expect(thousands == [.init(type: .text, content: "$20,000 and $30,000")])
+  }
+
+  @Test func inlineMathFollowsPandocRule() throws {
+    // given
+    let tokenizer = PatternTokenizer(patterns: [.escapedDollar, .mathBlock, .mathInline])
+
+    // then: a space just inside either dollar, or a digit right after
+    // the closing one, means no math
+    #expect(try tokenizer.tokenize("$ x$") == [.init(type: .text, content: "$ x$")])
+    #expect(try tokenizer.tokenize("$x $") == [.init(type: .text, content: "$x $")])
+    #expect(try tokenizer.tokenize("$x$5") == [.init(type: .text, content: "$x$5")])
+    #expect(
+      try tokenizer.tokenize("$x^2$, $5 and $y$") == [
+        .init(type: .mathInline, content: "$x^2$", capturedContent: "x^2"),
+        .init(type: .text, content: ", $5 and "),
+        .init(type: .mathInline, content: "$y$", capturedContent: "y"),
+      ]
+    )
+  }
+
+  @Test func escapedDollarIsLiteral() throws {
+    // given
+    let tokenizer = PatternTokenizer(patterns: [.escapedDollar, .mathBlock, .mathInline])
+
+    // when
+    let tokens = try tokenizer.tokenize("\\$5 and \\$10")
+
+    // then
+    #expect(
+      tokens == [
+        .init(type: .escapedDollar, content: "\\$", capturedContent: "$"),
+        .init(type: .text, content: "5 and "),
+        .init(type: .escapedDollar, content: "\\$", capturedContent: "$"),
+        .init(type: .text, content: "10"),
+      ]
+    )
+  }
+
+  @Test func escapedDollarInsideMathStaysMath() throws {
+    // given
+    let tokenizer = PatternTokenizer(patterns: [.escapedDollar, .mathBlock, .mathInline])
+
+    // when
+    let tokens = try tokenizer.tokenize("$a \\$ b$ and $x\\\\$")
+
+    // then
+    #expect(
+      tokens == [
+        .init(type: .mathInline, content: "$a \\$ b$", capturedContent: "a \\$ b"),
+        .init(type: .text, content: " and "),
+        .init(type: .mathInline, content: "$x\\\\$", capturedContent: "x\\\\"),
+      ]
+    )
+  }
+
+  @Test func mathExtensionRendersEscapedDollar() throws {
+    // given
+    let processor = AttributedStringMarkdownParser.PatternProcessor(syntaxExtensions: [.math])
+
+    // when
+    let output = try processor.expand(AttributedString("\\$5 and \\$10, $x$"))
+
+    // then
+    #expect(String(output.characters) == "$5 and $10, \u{FFFC}")
+  }
+
   @Test func blockMath() throws {
     // given
     let tokenizer = PatternTokenizer(patterns: [.mathBlock, .mathInline])

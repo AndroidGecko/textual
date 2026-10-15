@@ -51,9 +51,13 @@ extension AttributedStringMarkdownParser.SyntaxExtension {
     }
   }
 
-  /// Replaces inline and block math expressions with attachments.
+  /// Replaces inline and block math expressions with attachments, and `\$`
+  /// with a literal `$`.
   public static var math: Self {
-    .init(patterns: [.mathBlock, .mathInline]) { token, attributes in
+    .init(patterns: [.escapedDollar, .mathBlock, .mathInline]) { token, attributes in
+      if token.type == .escapedDollar {
+        return AttributedString("$", attributes: attributes)
+      }
       guard let latex = token.capturedContent else {
         return nil
       }
