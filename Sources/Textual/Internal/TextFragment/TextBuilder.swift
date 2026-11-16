@@ -78,12 +78,7 @@ extension Text {
         // Create placeholder
         text = Text(placeholderSize: size)
           .baselineOffset(key.attachment.baselineOffset(in: runEnvironment))
-          .customAttribute(
-            AttachmentAttribute(
-              key.attachment,
-              presentationIntent: run.presentationIntent
-            )
-          )
+          .customAttribute(AttachmentAttribute(key.attachment, run: run))
       } else {
         text = Text(AttributedString(attributedString[run.range]))
       }

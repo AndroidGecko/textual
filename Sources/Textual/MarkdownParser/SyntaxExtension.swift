@@ -40,14 +40,28 @@ extension AttributedStringMarkdownParser.SyntaxExtension {
 
   /// Renders `==text==` (the Obsidian highlight convention) with a
   /// background color, keeping the text and its other attributes intact.
+  ///
+  /// The tokenizer matches one pattern at a time, so maths and `\$` inside a
+  /// highlight never reach the `math` extension: the highlight's content is
+  /// tokenized with `math`'s own patterns and replaced by its own rules.
   public static func highlight(color: Color = .yellow.opacity(0.3)) -> Self {
-    .init(patterns: [.highlight]) { token, attributes in
+    let math = Self.math
+    let tokenizer = PatternTokenizer(patterns: math.patterns)
+
+    return .init(patterns: [.highlight]) { token, attributes in
       guard let text = token.capturedContent else {
         return nil
       }
       var highlighted = attributes
       highlighted.backgroundColor = color
-      return AttributedString(text, attributes: highlighted)
+
+      let tokens = (try? tokenizer.tokenize(text)) ?? [.init(type: .text, content: text)]
+      return tokens.reduce(into: AttributedString()) { output, token in
+        output.append(
+          math.replace(token, highlighted)
+            ?? AttributedString(token.content, attributes: highlighted)
+        )
+      }
     }
   }
 
