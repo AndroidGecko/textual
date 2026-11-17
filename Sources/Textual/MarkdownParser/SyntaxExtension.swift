@@ -54,6 +54,11 @@ extension AttributedStringMarkdownParser.SyntaxExtension {
       }
       var highlighted = attributes
       highlighted.backgroundColor = color
+      // Most highlights hold no maths: skip the tokenizer (every math
+      // pattern, `\$` included, needs a `$`).
+      guard text.contains("$") else {
+        return AttributedString(text, attributes: highlighted)
+      }
 
       let tokens = (try? tokenizer.tokenize(text)) ?? [.init(type: .text, content: text)]
       return tokens.reduce(into: AttributedString()) { output, token in
